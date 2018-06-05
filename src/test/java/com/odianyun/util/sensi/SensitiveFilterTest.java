@@ -1,13 +1,9 @@
 package com.odianyun.util.sensi;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStreamReader;
-import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.alibaba.fastjson.JSON;
 import junit.framework.TestCase;
 
 public class SensitiveFilterTest extends TestCase{
@@ -20,7 +16,7 @@ public class SensitiveFilterTest extends TestCase{
 		filter.put("婚礼上唱春天在哪里");
 		
 		// 待过滤的句子
-		String sentence = "然后，市长在婚礼上唱春天在哪里。";
+		String sentence = "操你妈，绍兴已有2500多年建城史 [4]  ，是首批国家历史文化名城、联合国人居奖城市，中国优秀旅游城市，国家森林城市，中国民营经济最具活力城市，也是著名的水乡、桥乡、酒乡、书法之乡、名士之乡。绍兴素称“文物之邦、鱼米之乡”。著名的文化古迹有兰亭、禹陵、鲁迅故里、沈园、柯岩、蔡元培故居、周恩来祖居、秋瑾故居、马寅初故居、王羲之故居、贺知章故居等。";
 		// 进行过滤
 		String filted = filter.filter(sentence, '*');
 		
@@ -29,9 +25,15 @@ public class SensitiveFilterTest extends TestCase{
 			// 句子中有敏感词
 			System.out.println(filted);
 		}
-		
+
+		List<String> words = filter.extract(sentence);
+
+		System.out.println(JSON.toJSONString(words));
+
+
 	}
-	
+
+	/**
 	public void testLogic(){
 		
 		SensitiveFilter filter = new SensitiveFilter();
@@ -95,5 +97,6 @@ public class SensitiveFilterTest extends TestCase{
 		System.out.println(String.format("其中 %d 行有替换", replaced));
 		
 	}
+	 **/
 
 }

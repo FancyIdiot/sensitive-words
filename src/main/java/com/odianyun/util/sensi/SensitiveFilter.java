@@ -5,8 +5,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
-import java.util.Iterator;
-import java.util.NavigableSet;
+import java.util.*;
 
 /**
  * 敏感词过滤器，以过滤速度优化为主。<br/>
@@ -26,7 +25,7 @@ public class SensitiveFilter implements Serializable{
 	 */
 	public static final SensitiveFilter DEFAULT = new SensitiveFilter(
 			new BufferedReader(new InputStreamReader(
-					ClassLoader.getSystemResourceAsStream("sensi_words.txt")
+					ClassLoader.getSystemResourceAsStream("sensitive.txt")
 					, StandardCharsets.UTF_8)));
 	
 	/**
@@ -42,10 +41,12 @@ public class SensitiveFilter implements Serializable{
 	 * 使用2个字符的hash定位。
 	 */
 	protected SensitiveNode[] nodes = new SensitiveNode[DEFAULT_INITIAL_CAPACITY];
+
+	protected HashSet<Character> sensiWords = new HashSet(DEFAULT_INITIAL_CAPACITY);
 	
 	/**
 	 * 构建一个空的filter
-	 * 
+	 *
 	 * @author ZhangXiaoye
 	 * @date 2017年1月5日 下午4:18:07
 	 */
@@ -83,6 +84,10 @@ public class SensitiveFilter implements Serializable{
 	 * @date 2017年1月5日 下午2:35:21
 	 */
 	public boolean put(String word){
+	    if (null != word && word.trim().length() == 1) {
+	    	sensiWords.add(word.charAt(0));
+	    	return true;
+		}
 		// 长度小于2的不加入
 		if(word == null || word.trim().length() < 2){
 			return false;
@@ -229,5 +234,90 @@ public class SensitiveFilter implements Serializable{
 			return sentence;
 		}
 	}
+
+	List<String> extract(String sentence) {
+		// 先转换为StringPointer
+		StringPointer sp = new StringPointer(sentence);
+
+		// 标示是否替换
+		boolean replaced = false;
+
+		// 匹配的起始位置
+		int i = 0;
+		List<String> words = new ArrayList<>();
+		while(i < sp.length - 2){
+			/*
+			 * 移动到下一个匹配位置的步进：
+			 * 如果未匹配为1，如果匹配是匹配的词长度
+			 */
+			int step = 1;
+			// 计算此位置开始2个字符的hash
+			int hash = sp.nextTwoCharHash(i);
+			/*
+			 * 根据hash获取第一个节点，
+			 * 真正匹配的节点可能不是第一个，
+			 * 所以有后面的for循环。
+			 */
+			SensitiveNode node = nodes[hash & (nodes.length - 1)];
+
+			if(node != null){
+				/*
+				 * 如果能拿到第一个节点，
+				 * 才计算mix（mix相同表示2个字符相同）。
+				 * mix的意义和HashMap先hash再equals的equals部分类似。
+				 */
+				int mix = sp.nextTwoCharMix(i);
+				/*
+				 * 循环所有的节点，如果非敏感词，
+				 * mix相同的概率非常低，提高效率
+				 */
+				outer:
+				for(; node != null; node = node.next){
+					/*
+					 * 对于一个节点，先根据头2个字符判断是否属于这个节点。
+					 * 如果属于这个节点，看这个节点的词库是否命中。
+					 * 此代码块中访问次数已经很少，不是优化重点
+					 */
+					if(node.headTwoCharMix == mix){
+						/*
+						 * 查出比剩余sentence小的最大的词。
+						 * 例如剩余sentence为"色情电影哪家强？"，
+						 * 这个节点含三个词从小到大为："色情"、"色情电影"、"色情信息"。
+						 * 则从“色情电影”开始向前匹配
+						 */
+						NavigableSet<StringPointer> desSet = node.words.headSet(sp.substring(i), true);
+						if(desSet != null){
+							for(StringPointer word: desSet.descendingSet()){
+								/*
+								 * 仍然需要再判断一次，例如"色情信息哪里有？"，
+								 * 如果节点只包含"色情电影"一个词，
+								 * 仍然能够取到word为"色情电影"，但是不该匹配。
+								 */
+								if(sp.nextStartsWith(i, word)){
+									// 匹配成功，将匹配的部分，用replace制定的内容替代
+                                    words.add(word.toString());
+									break outer;
+								}
+							}
+						}
+
+					}
+				}
+			}
+
+			// 移动到下一个匹配位置
+			i += step;
+		}
+
+		for (int j= 0; j < sentence.length(); j++) {
+			if (sensiWords.contains(sentence.charAt(j))) {
+			    words.add(new StringBuilder().append(sentence.charAt(j)).toString());
+			}
+
+		}
+
+		return words;
+	}
+
 
 }
